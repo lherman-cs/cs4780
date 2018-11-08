@@ -3,7 +3,7 @@
 TEMPLATE="main.template"
 OUT="main.c"
 BLOCK_SIZES=(1 2 4 8 10 20)
-TRIALS=3
+TRIALS=30
 REGEX="The kernel took (.+\..*) ms"
 PROG="./matmul"
 
