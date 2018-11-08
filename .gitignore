@@ -52,3 +52,9 @@ Mkfile.old
 dkms.conf
 
 build
+
+# Tarballs
+*.tar.gz
+
+# Binary files
+matmul
