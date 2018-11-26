@@ -58,3 +58,5 @@ build
 
 # Binary files
 matmul
+
+.DS_Store
