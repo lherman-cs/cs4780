@@ -1,7 +1,8 @@
-#include "sobel.hpp"
 #include <math.h>
+#include "sobel.hpp"
 
-png_bytepp sobel(const png_bytepp img, png_uint_32 height, png_uint_32 width) {
+png_bytepp sobel_cpu(const png_bytepp img, png_uint_32 height,
+                     png_uint_32 width) {
   png_bytepp dst_img = new png_bytep[height];
   for (auto h = 0; h < height; h++) dst_img[h] = new png_byte[width * 3];
 
