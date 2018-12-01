@@ -34,7 +34,7 @@ const char *kernel =
 "}\n";
 
 void handle(cl_int err) {
-  if (err == CL_SUCCESS) return;
+  if (err == 1) return;
   std::__throw_runtime_error(std::to_string(err).data());
 }
 
