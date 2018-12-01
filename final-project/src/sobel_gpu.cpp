@@ -9,36 +9,29 @@
 #include <CL/cl.h>
 #endif
 
-const char *kernel =
-    "__constant sampler_t sampler =\n"
-    "      CLK_NORMALIZED_COORDS_FALSE\n"
-    "    | CLK_ADDRESS_CLAMP_TO_EDGE\n"
-    "    | CLK_FILTER_NEAREST;\n"
-    "void __kernel find_edge(__read_only image2d_t in, __write_only image2d_t "
-    "out) {\n"
-    "const int2 pos = {get_global_id(1), get_global_id(0)};\n"
-    "// Compute gradient in +ve x direction\n"
-    "const float4 topleft = read_imagef(in, sampler, pos + (int2)(-1, -1));\n"
-    "const float4 topright = read_imagef(in, sampler, pos + (int2)(-1, 1));\n"
-    "const float4 botleft = read_imagef(in, sampler, pos + (int2)(1, -1));\n"
-    "const float4 botright = read_imagef(in, sampler, pos + (int2)(1, 1));\n"
-    "float4 gradient_X = topleft\n"
-    "- topright\n"
-    "+ 2 * read_imagef(in, sampler, pos + (int2)(0, -1))\n"
-    "- 2 * read_imagef(in, sampler, pos + (int2)(0, 1))\n"
-    "+ botleft\n"
-    "- botright;\n"
-    "// Compute gradient in +ve y direction\n"
-    "float4 gradient_Y = topleft\n"
-    "+ 2 * read_imagef(in, sampler, pos + (int2)(-1, 0))\n"
-    "+ topright\n"
-    "- botleft\n"
-    "- 2 * read_imagef(in, sampler, pos + (int2)(1, 0))\n"
-    "- botright;\n"
-    "float4 value = (float4)1.0 - sqrt(pow(gradient_X, 2) + pow(gradient_Y, "
-    "2));\n"
-    "write_imagef(out, pos, value);\n"
-    "}\n";
+const char *kernel = 
+"void __kernel find_edge(global read_only unsigned char *in, global write_only unsigned char *out,\n"
+"const unsigned int w, const unsigned int h) {\n"
+"size_t y = get_global_id(0);\n"
+"size_t x = get_global_id(1);\n"
+"size_t id = y * x;\n"
+"// Compute gradient in +ve x direction\n"
+"float gradient_X = in[ (x-1) + (y-1) * w ]\n"
+"- in[ (x+1) + (y-1) * w ]\n"
+"+ 2 * in[ (x-1) +  y    * w ]\n"
+"- 2 * in[ (x+1) +  y    * w ]\n"
+"+ in[ (x-1) + (y+1) * w ]\n"
+"- in[ (x+1) + (y+1) * w ];\n"
+"// Compute gradient in +ve y direction\n"
+"float gradient_Y = in[ (x-1) + (y-1) * w ]\n"
+"+ 2 * in[  x    + (y-1) * w ]\n"
+"+ in[ (x+1) + (y-1) * w ]\n"
+"- in[ (x-1) + (y+1) * w ]\n"
+"- 2 * in[  x    + (y+1) * w ]\n"
+"- in[ (x+1) + (y+1) * w ];\n"
+"int value = ceil(sqrt(pow(gradient_X, 2) + pow(gradient_Y, 2)));\n"
+"out[id] = 255 - value;\n"
+"}\n";
 
 void handle(cl_int err) {
   if (err == CL_SUCCESS) return;
@@ -77,7 +70,7 @@ cl_int get_platform(const char *vendor, cl_platform_id *chosen) {
       break;
     }
   }
-
+  
   free(_vendor);
   free(platforms);
   return ret;
@@ -104,16 +97,7 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
                      png_uint_32 width) {
   size_t offset[] = {1, 1};
   size_t global_work_size[] = {height - 1, width - 1};
-  cl_image_desc image_desc;
-  image_desc.image_type = CL_MEM_OBJECT_IMAGE2D;
-  image_desc.image_width = width;
-  image_desc.image_height = height;
-  image_desc.image_array_size = 1;
-  image_desc.image_row_pitch = 0;
-  image_desc.image_slice_pitch = 0;
-  image_desc.num_mip_levels = 0;
-  image_desc.num_samples = 0;
-  image_desc.buffer = NULL;
+  size_t size = height * width;
 
   cl_device_id devices;
   cl_context context;
@@ -122,13 +106,11 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
 
   init(&devices, &context, &queue);
 
-  const cl_image_format format = {CL_INTENSITY, CL_UNORM_INT8};
-  cl_mem d_in = clCreateImage(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-                              &format, &image_desc, (void *)img, &err);
+  cl_mem d_in = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+                                size, (void *)img, &err);
   handle(err);
 
-  cl_mem d_out = clCreateImage(context, CL_MEM_WRITE_ONLY, &format, &image_desc,
-                               NULL, &err);
+  cl_mem d_out = clCreateBuffer(context, CL_MEM_WRITE_ONLY, size, NULL, &err);
   handle(err);
 
   cl_program program =
@@ -154,6 +136,10 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
   handle(err);
   err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_out);
   handle(err);
+  err = clSetKernelArg(kernel, 2, sizeof(unsigned), &width);
+  handle(err);
+  err = clSetKernelArg(kernel, 3, sizeof(unsigned), &height);
+  handle(err);
 
   err = clEnqueueNDRangeKernel(queue, kernel, 2, offset, global_work_size, NULL,
                                0, NULL, NULL);
@@ -162,10 +148,7 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
   auto out = new png_bytep[height];
   for (png_uint_32 h = 0; h < height; h++) out[h] = new png_byte[width];
 
-  const size_t origin[] = {0, 0, 0};
-  const size_t region[] = {width, height, 1};
-  err = clEnqueueReadImage(queue, d_out, CL_TRUE, origin, region, 0, 0, out, 0,
-                           NULL, NULL);
+  err = clEnqueueReadBuffer(queue, d_out, CL_TRUE, 0, size, out, 0, NULL, NULL);
   handle(err);
 
   clFlush(queue);
