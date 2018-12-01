@@ -10,7 +10,7 @@
 #endif
 
 const char *kernel = 
-"void __kernel find_edge(global read_only unsigned char *in, global write_only unsigned char *out,\n"
+"void __kernel find_edge(global read_only char *in, global write_only char *out,\n"
 "const unsigned int w, const unsigned int h) {\n"
 "size_t y = get_global_id(0);\n"
 "size_t x = get_global_id(1);\n"
@@ -97,7 +97,7 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
                      png_uint_32 width) {
   size_t offset[] = {1, 1};
   size_t global_work_size[] = {height - 1, width - 1};
-  size_t size = height * width;
+  size_t size = height * width * 3;
 
   cl_device_id devices;
   cl_context context;
@@ -106,9 +106,9 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
 
   init(&devices, &context, &queue);
 
-  cl_mem d_in = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
-                                size, (void *)img, &err);
+  cl_mem d_in = clCreateBuffer(context, CL_MEM_READ_ONLY, size, NULL, &err);
   handle(err);
+  handle(clEnqueueWriteBuffer(queue, d_in, CL_TRUE, 0, size, img, 0, NULL, NULL));
 
   cl_mem d_out = clCreateBuffer(context, CL_MEM_WRITE_ONLY, size, NULL, &err);
   handle(err);
@@ -117,8 +117,7 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
       clCreateProgramWithSource(context, 1, &kernel, NULL, &err);
   handle(err);
 
-  err = clBuildProgram(program, 1, &devices, NULL, NULL, NULL);
-  handle(err);
+  handle(clBuildProgram(program, 1, &devices, NULL, NULL, NULL));
 #ifdef DEBUG
   size_t len = 0;
   clGetProgramBuildInfo(program, devices, CL_PROGRAM_BUILD_LOG, 0, NULL, &len);
@@ -132,24 +131,18 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
   cl_kernel kernel = clCreateKernel(program, "find_edge", &err);
   handle(err);
 
-  err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_in);
-  handle(err);
-  err = clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_out);
-  handle(err);
-  err = clSetKernelArg(kernel, 2, sizeof(unsigned), &width);
-  handle(err);
-  err = clSetKernelArg(kernel, 3, sizeof(unsigned), &height);
-  handle(err);
+  handle(clSetKernelArg(kernel, 0, sizeof(cl_mem), &d_in));
+  handle(clSetKernelArg(kernel, 1, sizeof(cl_mem), &d_out));
+  handle(clSetKernelArg(kernel, 2, sizeof(unsigned int), &width));
+  handle(clSetKernelArg(kernel, 3, sizeof(unsigned int), &height));
 
-  err = clEnqueueNDRangeKernel(queue, kernel, 2, offset, global_work_size, NULL,
-                               0, NULL, NULL);
-  handle(err);
+  handle(clEnqueueNDRangeKernel(queue, kernel, 2, offset, global_work_size, NULL,
+                               0, NULL, NULL));
 
   auto out = new png_bytep[height];
   for (png_uint_32 h = 0; h < height; h++) out[h] = new png_byte[width];
 
-  err = clEnqueueReadBuffer(queue, d_out, CL_TRUE, 0, size, out, 0, NULL, NULL);
-  handle(err);
+  handle(clEnqueueReadBuffer(queue, d_out, CL_TRUE, 0, size, out, 0, NULL, NULL));
 
   clFlush(queue);
   clFinish(queue);
