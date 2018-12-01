@@ -9,9 +9,9 @@ SRC = $(wildcard $(SRC_DIR)/*.cpp)
 OBJ = $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 
 CPPFLAGS += -Iinclude -std=c++17
-CFLAGS += -Wall
+CFLAGS += -Ofast
 LDFLAGS += -Llib
-LDLIBS += -lpng -framework OpenCL
+LDLIBS += -lpng -lOpenCL
 
 .PHONY: all clean
 
@@ -24,4 +24,4 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	$(CXX) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
 
 clean:
-	$(RM) $(OBJ)
+	$(RM) $(OBJ) $(EXE)

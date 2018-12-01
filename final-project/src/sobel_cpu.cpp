@@ -4,10 +4,10 @@
 png_bytepp sobel_cpu(const png_bytepp img, png_uint_32 height,
                      png_uint_32 width) {
   png_bytepp dst_img = new png_bytep[height];
-  for (auto h = 0; h < height; h++) dst_img[h] = new png_byte[width * 3];
+  for (png_uint_32 h = 0; h < height; h++) dst_img[h] = new png_byte[width * 3];
 
-  for (auto r = 1; r < height - 1; r++) {
-    for (auto c = 1; c < width - 1; c++) {
+  for (png_uint_32 r = 1; r < height - 1; r++) {
+    for (png_uint_32 c = 1; c < width - 1; c++) {
       auto gx = img[r - 1][c - 1] - img[r - 1][c + 1] + 2 * img[r][c - 1] -
                 2 * img[r][c + 1] + img[r + 1][c - 1] - img[r + 1][c + 1];
 

@@ -1,7 +1,7 @@
 #pragma once
 
 // TODO! Add fallback libpng
-#include <libpng16/png.h>
+#include <png.h>
 #include <string>
 
 typedef png_bytepp (*transform_fn)(const png_bytepp img, png_uint_32 height,

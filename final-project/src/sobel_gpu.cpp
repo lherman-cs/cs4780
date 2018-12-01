@@ -45,42 +45,37 @@ void handle(cl_int err) {
   std::__throw_runtime_error(std::to_string(err).data());
 }
 
-cl_int get_default_device(cl_platform_id *chosen_platform,
-                          cl_device_id *chosen_device) {
+cl_int get_platform(const char *vendor, cl_platform_id *chosen) {
   cl_uint num_platforms;
   cl_int ret;
 
   ret = clGetPlatformIDs(0, NULL, &num_platforms);
-  if (ret != CL_SUCCESS) return ret;
-
-  cl_platform_id *platforms =
-      (cl_platform_id *)calloc(num_platforms, sizeof(cl_platform_id));
+  if(ret != CL_SUCCESS) return ret;
+  
+  cl_platform_id *platforms = (cl_platform_id*)calloc(num_platforms, sizeof(cl_platform_id));
 
   ret = clGetPlatformIDs(num_platforms, platforms, NULL);
-  if (ret != CL_SUCCESS) {
+  if(ret != CL_SUCCESS) {
     free(platforms);
     return ret;
   }
 
   size_t size_ret;
   char *_vendor = NULL;
-  for (auto i = 0; i < num_platforms; i++) {
-    ret = clGetDeviceIDs(platforms[i], CL_DEVICE_TYPE_GPU, 1, chosen_device,
-                         NULL);
-    if (ret != CL_SUCCESS) continue;
+  for(cl_uint i = 0; i < num_platforms; i++){
+    ret = clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR, 0, NULL, &size_ret);
+    if(ret != CL_SUCCESS) break;
 
-    ret =
-        clGetPlatformInfo(platforms[0], CL_PLATFORM_VENDOR, 0, NULL, &size_ret);
-    if (ret != CL_SUCCESS) continue;
-
-    _vendor = (char *)realloc((void *)_vendor, size_ret);
-    ret = clGetPlatformInfo(platforms[0], CL_PLATFORM_VENDOR, size_ret, _vendor,
-                            NULL);
-    if (ret != CL_SUCCESS) continue;
+    _vendor = (char*)realloc((void*)_vendor, size_ret);
+    ret = clGetPlatformInfo(platforms[i], CL_PLATFORM_VENDOR, size_ret, _vendor, NULL);
+    if(ret != CL_SUCCESS) break;
 
     printf("Found %s!\n", _vendor);
-    *chosen_platform = platforms[i];
-    ret = CL_SUCCESS;
+    if(strstr(_vendor, vendor) != NULL) {
+      *chosen = platforms[i];
+      ret = CL_SUCCESS;
+      break;
+    }
   }
 
   free(_vendor);
@@ -92,8 +87,9 @@ cl_int init(cl_device_id *devices, cl_context *context,
             cl_command_queue *queue) {
   cl_platform_id platform;
   cl_int err;
-  err = get_default_device(&platform, devices);
-  handle(err);
+
+  handle(get_platform("NVIDIA", &platform));
+  handle(clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, devices, NULL));
 
   *context = clCreateContext(NULL, 1, devices, NULL, NULL, &err);
   handle(err);
@@ -164,7 +160,7 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
   handle(err);
 
   auto out = new png_bytep[height];
-  for (auto h = 0; h < height; h++) out[h] = new png_byte[width];
+  for (png_uint_32 h = 0; h < height; h++) out[h] = new png_byte[width];
 
   const size_t origin[] = {0, 0, 0};
   const size_t region[] = {width, height, 1};
