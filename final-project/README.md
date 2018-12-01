@@ -12,12 +12,12 @@ This repository depends on the following shared libraries:
 * OpenCL
 * png
 
-## How to use the GPU?
+## Modules Requires?
 filter allows a fallback mechanism to not always use the GPU whenever it's not possible.
-To enable the GPU, you need to add a module in Palmetto:
+To enable the GPU and newest c++17, you need to add a module in Palmetto:
 
 ```sh
-module load cuda-toolkit
+module load cuda-toolkit gcc/8.2.0
 ```
 
 ## Compilation
