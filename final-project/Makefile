@@ -9,7 +9,7 @@ SRC = $(wildcard $(SRC_DIR)/*.cpp)
 OBJ = $(SRC:$(SRC_DIR)/%.cpp=$(OBJ_DIR)/%.o)
 
 CPPFLAGS += -Iinclude -std=c++17 
-CFLAGS += -g3 -Wall
+CFLAGS += -Ofast
 LDFLAGS += -Llib
 LDLIBS += -lpng -lOpenCL
 
