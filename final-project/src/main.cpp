@@ -13,7 +13,7 @@ int main(int argc, char* argv[]) {
   try {
     img.transform(sobel_gpu);
   } catch (std::exception& e) {
-    std::cout << "Fallback to cpu" << std::endl;
+    std::cout << "Fallback to cpu: " << e.what() << std::endl;
     img.transform(sobel_cpu);
   }
   img.save(argv[2]);

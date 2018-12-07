@@ -22,16 +22,16 @@ Image::Image(const std::string src) {
 
   auto height = this->height();
   auto width = this->width();
+  png_bytep raw = new png_byte[height * width];
   this->img = new png_bytep[height];
-  for (png_uint_32 h = 0; h < height; h++) this->img[h] = new png_byte[width];
+  for (png_uint_32 h = 0; h < height; h++) this->img[h] = &raw[h * width];
 
   png_read_image(this->png, this->img);
   fclose(fp);
 }
 
 Image::~Image() {
-  auto height = this->height();
-  for (png_uint_32 h = 0; h < height; h++) delete[] this->img[h];
+  delete[] this->img[0];
   delete[] this->img;
 
   png_destroy_read_struct(&this->png, &this->info, NULL);
@@ -55,7 +55,7 @@ void Image::transform(transform_fn fn) {
   auto height = this->height();
   auto width = this->width();
   auto transformed = fn(this->img, height, width);
-  for (png_uint_32 h = 0; h < height; h++) delete[] this->img[h];
+  delete[] this->img[0];
   delete[] this->img;
 
   this->img = transformed;

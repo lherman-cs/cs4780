@@ -10,31 +10,31 @@
 #endif
 
 const char *kernel = 
-"void __kernel find_edge(global unsigned char *in, global unsigned char *out,\n"
+"void __kernel find_edge(global uchar *in, global uchar *out,\n"
 "const unsigned int w, const unsigned int h) {\n"
-"size_t y = get_global_id(0);\n"
-"size_t x = get_global_id(1);\n"
-"size_t id = (y * w) + x;\n"
+"size_t r = get_global_id(0);\n"
+"size_t c = get_global_id(1);\n"
+"size_t id = (r * w) + c;\n"
 "// Compute gradient in +ve x direction\n"
-"float gradient_X = in[ (x-1) + (y-1) * w ]\n"
-"- in[ (x+1) + (y-1) * w ]\n"
-"+ 2 * in[ (x-1) +  y    * w ]\n"
-"- 2 * in[ (x+1) +  y    * w ]\n"
-"+ in[ (x-1) + (y+1) * w ]\n"
-"- in[ (x+1) + (y+1) * w ];\n"
+"int gx = in[(r-1)*w+c-1]\n"
+"- in[(r-1)*w+c+1]\n"
+"+ 2 * in[r*w+c-1]\n"
+"- 2 * in[r*w+c+1]\n"
+"+ in[(r+1)*w+c-1]\n"
+"- in[(r+1)*w+c+1];\n"
 "// Compute gradient in +ve y direction\n"
-"float gradient_Y = in[ (x-1) + (y-1) * w ]\n"
-"+ 2 * in[  x    + (y-1) * w ]\n"
-"+ in[ (x+1) + (y-1) * w ]\n"
-"- in[ (x-1) + (y+1) * w ]\n"
-"- 2 * in[  x    + (y+1) * w ]\n"
-"- in[ (x+1) + (y+1) * w ];\n"
-"int value = ceil(sqrt(pow(gradient_X, 2) + pow(gradient_Y, 2)));\n"
-"out[id] = 255 - value;\n"
+"int gy = in[(r-1)*w+c-1]\n"
+"+ 2 * in[(r-1)*w+c]\n"
+"+ in[(r-1)*w+c+1]\n"
+"- in[(r+1)*w+c-1]\n"
+"- 2 * in[(r+1)*w+c]\n"
+"- in[(r+1)*w+c+1];\n"
+"int value = 255 - (int)ceil(sqrt((float)(gx*gx + gy*gy)));\n"
+"out[id] = value;\n"
 "}\n";
 
 void handle(cl_int err) {
-  if (err == 0) return;
+  if (err == CL_SUCCESS) return;
   std::__throw_runtime_error(std::to_string(err).data());
 }
 
@@ -97,7 +97,7 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
                      png_uint_32 width) {
   size_t offset[] = {1, 1};
   size_t global_work_size[] = {height - 1, width - 1};
-  size_t size = height * width * 3;
+  size_t size = height * width;
 
   cl_device_id devices;
   cl_context context;
@@ -106,9 +106,9 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
 
   init(&devices, &context, &queue);
 
-  cl_mem d_in = clCreateBuffer(context, CL_MEM_READ_ONLY, size, NULL, &err);
+  cl_mem d_in = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, 
+                              size, *img, &err);
   handle(err);
-  handle(clEnqueueWriteBuffer(queue, d_in, CL_TRUE, 0, size, img, 0, NULL, NULL));
 
   cl_mem d_out = clCreateBuffer(context, CL_MEM_WRITE_ONLY, size, NULL, &err);
   handle(err);
@@ -127,7 +127,6 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
   printf("%s\n", buffer);
   free(buffer);
 #endif
-
   cl_kernel kernel = clCreateKernel(program, "find_edge", &err);
   handle(err);
 
@@ -139,10 +138,11 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
   handle(clEnqueueNDRangeKernel(queue, kernel, 2, offset, global_work_size, NULL,
                                0, NULL, NULL));
 
-  auto out = new png_bytep[height];
-  for (png_uint_32 h = 0; h < height; h++) out[h] = new png_byte[width];
+  png_bytep raw = new png_byte[height * width];
+  png_bytepp dst_img = new png_bytep[height];
+  for (png_uint_32 h = 0; h < height; h++) dst_img[h] = &raw[h * width];
 
-  handle(clEnqueueReadBuffer(queue, d_out, CL_TRUE, 0, size, out, 0, NULL, NULL));
+  handle(clEnqueueReadBuffer(queue, d_out, CL_TRUE, 0, size, raw, 0, NULL, NULL));
 
   clFlush(queue);
   clFinish(queue);
@@ -154,5 +154,5 @@ png_bytepp sobel_gpu(const png_bytepp img, png_uint_32 height,
   clReleaseContext(context);
   clReleaseDevice(devices);
 
-  return out;
+  return dst_img;
 }
