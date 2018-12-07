@@ -10,11 +10,11 @@
 #endif
 
 const char *kernel = 
-"void __kernel find_edge(global read_only char *in, global write_only char *out,\n"
+"void __kernel find_edge(global unsigned char *in, global unsigned char *out,\n"
 "const unsigned int w, const unsigned int h) {\n"
 "size_t y = get_global_id(0);\n"
 "size_t x = get_global_id(1);\n"
-"size_t id = y * x;\n"
+"size_t id = (y * w) + x;\n"
 "// Compute gradient in +ve x direction\n"
 "float gradient_X = in[ (x-1) + (y-1) * w ]\n"
 "- in[ (x+1) + (y-1) * w ]\n"
@@ -34,7 +34,7 @@ const char *kernel =
 "}\n";
 
 void handle(cl_int err) {
-  if (err == 1) return;
+  if (err == 0) return;
   std::__throw_runtime_error(std::to_string(err).data());
 }
 
